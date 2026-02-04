@@ -262,8 +262,8 @@ function updateUI() {
 
         // 予算不足の場合はグレーアウト
         let cost = c.cost;
-        // アメリカの総力戦コストダウン
-        if (currentPlayerData.nation === 'USA' && currentPlayerData.hp <= 20) {
+        // アメリカの総力戦コストダウン（HP20以下かつ劣勢時）
+        if (currentPlayerData.nation === 'USA' && currentPlayerData.hp <= 20 && currentPlayerData.hp < opponentData.hp) {
             cost = Math.max(0, cost - 2);
         }
         
@@ -439,8 +439,8 @@ function playCard(idx) {
     const c = currentHand[idx];
     
     let cost = c.cost;
-    // アメリカの総力戦コストダウン
-    if (currentPlayerData.nation === 'USA' && currentPlayerData.hp <= 20) {
+    // アメリカの総力戦コストダウン（HP20以下かつ劣勢時）
+    if (currentPlayerData.nation === 'USA' && currentPlayerData.hp <= 20 && currentPlayerData.hp < opponentData.hp) {
         cost = Math.max(0, cost - 2);
     }
 
@@ -532,6 +532,12 @@ async function executeCombat() {
         const ePool = CARDS[state.e.nation];
         while (state.e.res >= 1 && state.e.handCount > 0) {
             const c = getWeightedCard(ePool);
+            // アメリカの総力戦コストダウン（HP20以下かつ劣勢時）
+            if (state.e.nation === 'USA' && state.e.hp <= 20 && state.e.hp < state.p.hp) {
+                // 敵CPUの手札コストも下げる処理（論理的にはここでコストチェック済みとみなす）
+                c.cost = Math.max(0, c.cost - 2); 
+            }
+
             if (state.e.res >= c.cost) {
                 state.e.res -= c.cost;
                 state.e.handCount--;
@@ -672,7 +678,8 @@ async function executeCombat() {
             }
         }
 
-        if (state.e.hp <= pinchThreshold) {
+        // 敵が劣勢かつピンチ
+        if (state.e.hp <= pinchThreshold && state.e.hp < state.p.hp) {
             // 敵も強化
             eSupply += 5;
             
@@ -712,11 +719,13 @@ async function executeCombat() {
         let eDrawCount = 2;
 
         // 総力戦時の追加ドロー強化 (+1 -> +2)
-        if (state.p.hp <= pinchThreshold) {
+        // プレイヤーが劣勢かつピンチ
+        if (state.p.hp <= pinchThreshold && state.p.hp < state.e.hp) {
             pDrawCount += 2;
             addLog(`${NATIONS[state.p.nation].name}に緊急物資到着！(ドロー+2)`, 'heal');
         }
-        if (state.e.hp <= pinchThreshold && state.gameMode !== 'cpu') {
+        // 敵が劣勢かつピンチ
+        if (state.e.hp <= pinchThreshold && state.e.hp < state.p.hp && state.gameMode !== 'cpu') {
             eDrawCount += 2;
             addLog(`敵軍に緊急物資到着！(ドロー+2)`, 'damage');
         }
@@ -779,13 +788,29 @@ function applyDamage(attacker, defender, targetIsPlayer, attackerIndex) {
     }
 
     if (defender && defender.hp > 0) {
-        // 回避判定
-        if (defender.ability === '回避' && Math.random() < 0.3) {
-            addLog(`${defender.name}が回避した！`, 'miss');
-            return;
+        // 【新機能】速度差による回避システム
+        let evasionRate = 0;
+
+        // 1. 速度差ボーナス（相手より速い分だけ回避率アップ、最大30%まで）
+        if (defender.spd > attacker.spd) {
+            evasionRate += (defender.spd - attacker.spd) * 0.05;
         }
-        if (defender.ability === 'ゲリラ' && Math.random() < 0.2) {
-            addLog(`${defender.name}がゲリラ戦術で回避！`, 'miss');
+
+        // 2. アビリティボーナス
+        if (defender.ability === '回避') evasionRate += 0.3;
+        if (defender.ability === 'ゲリラ') evasionRate += 0.2;
+
+        // 最大回避率を70%に制限（運ゲーになりすぎないよう）
+        evasionRate = Math.min(evasionRate, 0.7);
+
+        // 回避判定実行
+        if (Math.random() < evasionRate) {
+            // ログの出し分け（アビリティか速度か）
+            if (defender.ability === '回避' || defender.ability === 'ゲリラ') {
+                addLog(`${defender.name}が華麗に回避した！`, 'miss');
+            } else {
+                addLog(`${defender.name}が速度差で攻撃を回避！`, 'miss');
+            }
             return;
         }
 
@@ -795,6 +820,28 @@ function applyDamage(attacker, defender, targetIsPlayer, attackerIndex) {
         if (defender.ability === '不屈') def += 2;
         if (defender.ability === '重装甲') def += 2;
         if (defender.ability === '鋼鉄の盾') def += 2;
+
+        // ドイツの故障救済：故障中はトーチカ化して防御+3
+        if (defender.broken) {
+            def += 3;
+        }
+
+        // 【新機能】ユニット相性（特攻）
+        const defenderIcon = getUnitIcon(defender);
+        const isAirUnit = defenderIcon === '✈️';
+        const isTankUnit = defenderIcon === '🛡️';
+
+        // 対空攻撃（2倍）
+        if (attacker.name.includes('88mm') && isAirUnit) {
+            atk = Math.ceil(atk * 2);
+            addLog(`${attacker.name}の対空射撃！`, 'damage');
+        }
+
+        // 対戦車攻撃（1.5倍）
+        if ((attacker.name.includes('対戦車') || attacker.name.includes('スツーカ')) && isTankUnit) {
+            atk = Math.ceil(atk * 1.5);
+            addLog(`${attacker.name}の対戦車攻撃！`, 'damage');
+        }
 
         // 桜花特攻の防御無視処理
         if (attacker.ability === '特攻') {
@@ -890,7 +937,10 @@ function resolveEndOfTurn() {
     state.p.field = state.p.field.filter(u => {
         // イタリアの低士気：HP半分以下で20%撤退
         if (state.p.nation === 'Italy' && u.hp <= u.maxHp / 2 && Math.random() < 0.2) {
-            addLog(`${u.name}が撤退した...`, 'miss');
+            // 撤退時にコストの50%を回収（救済措置）
+            const refund = Math.ceil(u.cost * 0.5);
+            state.p.res += refund;
+            addLog(`${u.name}が撤退...予算${refund}回収`, 'heal');
             return false;
         }
 
@@ -930,7 +980,10 @@ function resolveEndOfTurn() {
     state.e.field = state.e.field.filter(u => {
         // イタリアの低士気：HP半分以下で20%撤退
         if (state.e.nation === 'Italy' && u.hp <= u.maxHp / 2 && Math.random() < 0.2) {
-            addLog(`敵${u.name}が撤退した`, 'miss');
+            // 撤退時にコストの50%を回収
+            const refund = Math.ceil(u.cost * 0.5);
+            state.e.res += refund;
+            addLog(`敵${u.name}が撤退...予算${refund}回収`, 'heal');
             return false;
         }
 
@@ -970,19 +1023,36 @@ function resolveEndOfTurn() {
 
 function checkWin() {
     if (state.isGameOver) return;
-    if (state.e.hp <= 0) endGame(true);
+    
+    // 両者HP0以下の場合は引き分け
+    if (state.p.hp <= 0 && state.e.hp <= 0) endGame('draw');
+    else if (state.e.hp <= 0) endGame(true);
     else if (state.p.hp <= 0) endGame(false);
 }
 
-function endGame(win) {
+function endGame(result) {
     state.isGameOver = true;
     updateUI();
     const modal = document.getElementById('gameover-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    document.getElementById('gameover-title').innerText = win ? "勝利" : "敗北";
-    document.getElementById('gameover-title').classList.add(win ? 'text-blue-500' : 'text-red-600');
-    document.getElementById('gameover-reason').innerText = win ? "敵戦線を完全突破。この戦いは我が軍の勝利で終わった。" : "防衛線が崩壊し、司令部が陥落した。歴史が塗り替えられた。";
+    
+    const title = document.getElementById('gameover-title');
+    const reason = document.getElementById('gameover-reason');
+
+    if (result === 'draw') {
+        title.innerText = "引き分け";
+        title.className = "text-4xl font-bold mb-4 text-gray-400"; // グレー
+        reason.innerText = "両軍の司令部が同時に壊滅。この戦いに勝者はいない...";
+    } else if (result === true) {
+        title.innerText = "勝利";
+        title.className = "text-4xl font-bold mb-4 text-blue-500";
+        reason.innerText = "敵戦線を完全突破。この戦いは我が軍の勝利で終わった。";
+    } else {
+        title.innerText = "敗北";
+        title.className = "text-4xl font-bold mb-4 text-red-600";
+        reason.innerText = "防衛線が崩壊し、司令部が陥落した。歴史が塗り替えられた。";
+    }
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
