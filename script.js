@@ -3,6 +3,7 @@ let state = {
     p: { hp: 50, res: 0, nation: '', hand: [], field: [] },
     e: { hp: 50, res: 0, nation: '', handCount: 0, field: [] },
     handLimit: 5, // 手札上限を5枚に修正
+    fieldLimit: 10, // フィールド上限
     isGameOver: false,
     busy: false,
     gameMode: '', // 'cpu' or 'pvp'
@@ -435,6 +436,20 @@ function playCard(idx) {
     const currentPlayerData = isPlayer2Turn ? state.e : state.p;
     const currentHand = isPvP ? currentPlayerData.hand : state.p.hand;
     const currentField = isPlayer2Turn ? state.e.field : state.p.field;
+    const opponentData = isPlayer2Turn ? state.p : state.e;
+
+    // フィールド上限チェック
+    if (currentField.length >= state.fieldLimit) {
+        addLog('戦場が飽和状態です！これ以上配備できません', 'miss');
+        const handEl = document.getElementById('player-hand');
+        if (handEl.children[idx]) {
+            handEl.children[idx].style.animation = 'shake 0.3s';
+            setTimeout(() => {
+                if (handEl.children[idx]) handEl.children[idx].style.animation = '';
+            }, 300);
+        }
+        return;
+    }
 
     const c = currentHand[idx];
     
@@ -538,6 +553,9 @@ async function executeCombat() {
                 c.cost = Math.max(0, c.cost - 2); 
             }
 
+            // フィールド上限チェック
+            if (state.e.field.length >= state.fieldLimit) break;
+
             if (state.e.res >= c.cost) {
                 state.e.res -= c.cost;
                 state.e.handCount--;
@@ -570,12 +588,15 @@ async function executeCombat() {
         const u = attacker.unit;
         if (!u || u.hp <= 0 || u.broken) continue;
 
-        // 攻撃対象を探す（同じインデックスの敵、いなければランダム）
+        // 攻撃対象を探す（生存している敵から完全ランダム）
         const isPlayer = attacker.side === 'player';
         const targetField = isPlayer ? state.e.field : state.p.field;
-        let target = targetField[attacker.index];
-        if (!target || target.hp <= 0) {
-            const validTargets = targetField.filter(t => t.hp > 0 && !t.broken);
+        
+        // 生存しているターゲット候補を抽出
+        const validTargets = targetField.filter(t => t.hp > 0 && !t.broken);
+        let target = null;
+        
+        if (validTargets.length > 0) {
             target = validTargets[Math.floor(Math.random() * validTargets.length)];
         }
 
@@ -701,12 +722,31 @@ async function executeCombat() {
                     u.hp -= 2;
                 });
                 // 敵AIも桜花を使用
-                if (state.e.hand.length < state.handLimit) {
+                // state.e.hand（手札配列）が存在する場合のみ追加
+                // CPUモードでは手札配列を使わないため、この処理は実質無意味だがエラー回避のため残す
+                if (Array.isArray(state.e.hand) && state.e.hand.length < state.handLimit) {
                     state.e.hand.push({
                         name: '桜花', cost: 0, atk: 30, def: 0, hp: 1, spd: 10,
                         ability: '特攻', desc: '敵1体を確実に破壊し自壊',
                         id: Math.random(), isNew: true
                     });
+                }
+                
+                // CPUモードの場合、即座に桜花を使用（擬似的に追加攻撃）
+                if (state.gameMode === 'cpu') {
+                    // CPUの手札カウントとは別に、桜花による特攻処理を行うか、あるいは次のターンの攻撃に含めるか
+                    // ここではシンプルに「次のターンに桜花が出現する確率を高める」か、
+                    // または「即座にフィールドに追加」して脅威度を高める
+                    
+                    // 即座にフィールドに追加
+                    const ohka = {
+                        name: '桜花', cost: 0, atk: 30, def: 0, hp: 1, spd: 10,
+                        ability: '特攻', desc: '敵1体を確実に破壊し自壊',
+                        id: Math.random(), isNew: true, maxHp: 1
+                    };
+                    state.e.field.push(ohka);
+                    addLog('敵軍が決戦兵器「桜花」を緊急発進！', 'damage');
+                    updateUI();
                 }
             }
         }
@@ -909,18 +949,20 @@ function applyDamage(attacker, defender, targetIsPlayer, attackerIndex) {
 
         // オーバーキルダメージ：余剰ダメージを司令部へ
         if (defender.hp < 0) {
-            const overkill = Math.abs(defender.hp);
-            if (targetIsPlayer) {
-                state.p.hp -= overkill;
-            } else {
-                state.e.hp -= overkill;
-            }
-            addLog(`オーバーキル！司令部に${overkill}ダメージ`, 'damage');
+            const overkill = Math.floor(Math.abs(defender.hp) * 0.5);
+            if (overkill > 0) {
+                if (targetIsPlayer) {
+                    state.p.hp -= overkill;
+                } else {
+                    state.e.hp -= overkill;
+                }
+                addLog(`防衛線を突破！司令部に${overkill}ダメージ`, 'damage');
+            };
         }
 
         // 戦意高揚：攻撃時にHQ回復
         if (attacker.ability === '戦意高揚') {
-            const heal = 2;
+            const heal = 1;
             if (targetIsPlayer) state.e.hp = Math.min(50, state.e.hp + heal);
             else state.p.hp = Math.min(50, state.p.hp + heal);
             addLog(`${attacker.name}の戦意高揚で司令部回復！`, 'heal');
@@ -962,8 +1004,8 @@ function resolveEndOfTurn() {
             }
             // アメリカの世論の圧力
             if (state.p.nation === 'USA') {
-                state.p.hp -= 3;
-                addLog(`世論の圧力で自軍HQに3ダメージ`, 'damage');
+                state.p.hp -= 5;
+                addLog(`世論の圧力で自軍HQに5ダメージ`, 'damage');
             }
             return false;
         }
@@ -1005,8 +1047,8 @@ function resolveEndOfTurn() {
             }
             // アメリカの世論の圧力
             if (state.e.nation === 'USA') {
-                state.e.hp -= 3;
-                addLog(`世論の圧力で敵HQに3ダメージ`, 'damage');
+                state.e.hp -= 5;
+                addLog(`世論の圧力で敵HQに5ダメージ`, 'damage');
             }
             return false;
         }
@@ -1387,7 +1429,7 @@ function updateTutorialPage() {
                     <p style="color: #ff6b6b; font-size: 10px;">欠陥：訓練不足（30%で攻撃ミス）</p>
                 </div>
                 <div class="mb-2 p-2 rounded" style="background: rgba(139,58,58,0.2); border: 1px solid #8b3a3a;">
-                    <div class="font-bold" style="color: #ff8787;">🇺🇸 アメリカ（予算7）</div>
+                    <div class="font-bold" style="color: #ff8787;">🇺🇸 アメリカ（予算6）</div>
                     <p style="color: #ff6b6b; font-size: 10px;">欠陥：世論の圧力（ユニット損失時HQ-5）</p>
                 </div>
                 <div class="mb-2 p-2 rounded" style="background: rgba(139,58,58,0.2); border: 1px solid #8b3a3a;">
