@@ -13,11 +13,58 @@ let state = {
 // 戦闘ログ
 let combatLog = [];
 
+// ユニットタイプに応じたアイコンを返す関数
+function getUnitIcon(unit) {
+    const name = unit.name;
+    const ability = unit.ability;
+
+    // 名前ベースのアイコン
+    if (name.includes('戦車') || name.includes('T-34') || name.includes('パンター') || name.includes('チャーチル') || name.includes('M4シャーマン') || name.includes('KV-1') || name.includes('M13') || name.includes('7TP') || name.includes('M10')) return '🛡️';
+    if (name.includes('航空機') || name.includes('スツーカ') || name.includes('ゼロ戦') || name.includes('スピットファイア') || name.includes('P-51') || name.includes('急降下') || name.includes('B-17') || name.includes('P-40') || name.includes('I-16') || name.includes('一式') || name.includes('ランカスター') || name.includes('PZL') || name.includes('Il-2')) return '✈️';
+    if (name.includes('戦艦') || name.includes('ビスマルク') || name.includes('大和') || name.includes('アイオワ') || name.includes('ローマ')) return '⚓';
+    if (name.includes('潜水艦') || name.includes('Uボート') || name.includes('伊号')) return '🌊';
+    if (name.includes('砲兵') || name.includes('カチューシャ') || name.includes('88mm砲')) return '💥';
+    if (name.includes('歩兵') || name.includes('狙撃兵') || name.includes('パラシュート') || name.includes('隊') || name.includes('ライフル')) return '🎖️';
+    if (name.includes('工兵') || name.includes('工作')) return '🔧';
+    if (name.includes('補給') || name.includes('輸送') || name.includes('タンケッテ') || name.includes('TK-3')) return '📦';
+    if (name.includes('偵察') || name.includes('スパイ')) return '🔍';
+    if (name.includes('レジスタンス') || name.includes('パルチザン') || name.includes('ゲリラ')) return '⚡';
+
+    // 特殊能力ベースのアイコン
+    if (ability === '急降下' || ability === '制空権') return '✈️';
+    if (ability === '巨砲貫通' || ability === '要塞化') return '🏰';
+    if (ability === '回避' || ability === 'ゲリラ') return '💨';
+    if (ability === '援軍' || ability === '人海戦術') return '👥';
+    if (ability === '補給線') return '📦';
+    if (ability === '野戦修理') return '🔧';
+    if (ability === '重装甲' || ability === '不屈') return '🛡️';
+    if (ability === 'レジスタンス') return '⚡';
+    if (ability === '戦意高揚') return '🔥';
+
+    // デフォルト（ユニットのコストによって変える）
+    if (unit.cost >= 8) return '⭐';
+    if (unit.cost >= 5) return '🎯';
+    if (unit.cost >= 3) return '⚔️';
+    return '🪖';
+}
+
+// チュートリアル状態
+let tutorialState = {
+    currentPage: 0,
+    totalPages: 5
+};
+
 // ページ読み込み時の初期化
 document.addEventListener('DOMContentLoaded', function() {
     // モード選択ボタンのイベントリスナー
     document.getElementById('cpu-mode-btn').onclick = () => selectMode('cpu');
     document.getElementById('pvp-mode-btn').onclick = () => selectMode('pvp');
+    document.getElementById('tutorial-btn').onclick = openTutorial;
+
+    // チュートリアルナビゲーション
+    document.getElementById('tutorial-prev').onclick = () => changeTutorialPage(-1);
+    document.getElementById('tutorial-next').onclick = () => changeTutorialPage(1);
+    document.getElementById('tutorial-close').onclick = closeTutorial;
 });
 
 // モード選択
@@ -210,44 +257,80 @@ function updateUI() {
     handEl.innerHTML = '';
     currentHand.forEach((c, i) => {
         const d = document.createElement('div');
-        d.className = `w-20 h-24 shrink-0 flex flex-col justify-between active:scale-90 transition-transform cursor-pointer ${c.isNew ? 'draw-anim' : ''}`;
+        d.className = `w-30 h-40 shrink-0 flex flex-col justify-between active:scale-90 transition-transform cursor-pointer ${c.isNew ? 'draw-anim' : ''}`;
 
         // 予算不足の場合はグレーアウト
         const isAffordable = currentPlayerData.res >= c.cost;
         const opacity = isAffordable ? '1' : '0.5';
 
+        // ユニットタイプに応じたアイコン取得
+        const icon = getUnitIcon(c);
+
         d.style.cssText = `
             background: linear-gradient(145deg, #2a2520, #1a1510);
             border: 2px solid ${isAffordable ? '#4a6fa5' : '#4a3f30'};
-            border-radius: 4px;
-            padding: 6px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+            border-radius: 6px;
+            padding: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
             position: relative;
+            box-sizing: border-box;
+            width: 120px;
+            height: 160px;
         `;
 
         d.innerHTML = `
             <div style="opacity: ${opacity};">
-                <div class="flex justify-between font-bold text-[8px]">
-                    <span class="truncate pr-1" style="color: #d4c5b0;">${c.name}</span>
-                    <span style="color: #fbbf24; background: rgba(251,191,36,0.2); padding: 0 4px; border-radius: 2px; border: 1px solid #fbbf24;">${c.cost}</span>
+                <div class="flex justify-between items-center font-bold text-[10px] mb-2">
+                    <span class="truncate pr-1" style="color: #d4c5b0; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${c.name}</span>
+                    <span style="color: #fbbf24; background: rgba(251,191,36,0.25); padding: 2px 5px; border-radius: 3px; border: 1px solid #fbbf24; font-size: 9px; box-shadow: 0 0 4px rgba(251,191,36,0.3);">${c.cost}</span>
                 </div>
-                <div class="flex flex-col gap-0.5 mt-1">
-                    <span class="ability-tag">${c.ability}</span>
-                    <span class="text-[6px] leading-tight" style="color: #8a7f70;">${c.desc}</span>
+                <div style="text-align: center; background: radial-gradient(circle, rgba(74,63,48,0.3) 0%, transparent 70%); border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; margin: 4px auto;">
+                    <div style="font-size: 28px; line-height: 1; text-shadow: 0 2px 4px rgba(0,0,0,0.7);">${icon}</div>
                 </div>
-                <div class="flex justify-between text-[7px] font-mono mt-auto pt-1" style="border-top: 1px solid #4a3f30;">
-                    <div class="flex flex-col">
-                        <span style="color: #fb923c;">攻:${c.atk}</span>
-                        <span style="color: #60a5fa;">防:${c.def}</span>
+                <div class="flex flex-col gap-1 mt-2 mb-2">
+                    <span class="ability-tag" style="font-size: 7px; padding: 2px 4px; text-align: center;">${c.ability}</span>
+                </div>
+                <div class="flex justify-between text-[8px] font-mono mt-auto pt-2" style="border-top: 1px solid #4a3f30;">
+                    <div class="flex flex-col gap-0.5">
+                        <span style="color: #fb923c; font-weight: bold;">⚔️${c.atk}</span>
+                        <span style="color: #60a5fa; font-weight: bold;">🛡️${c.def}</span>
                     </div>
-                    <div class="flex flex-col text-right">
-                        <span style="color: #4ade80;">HP:${c.hp}</span>
-                        <span style="color: #c084fc;">速:${c.spd}</span>
+                    <div class="flex flex-col gap-0.5 text-right">
+                        <span style="color: #4ade80; font-weight: bold;">❤️${c.hp}</span>
+                        <span style="color: #c084fc; font-weight: bold;">⚡${c.spd}</span>
                     </div>
                 </div>
             </div>
         `;
-        d.onclick = () => playCard(i);
+
+        // 長押し検出の実装
+        let pressTimer;
+        const longPressDuration = 500; // 500ms
+
+        const startPress = (e) => {
+            pressTimer = setTimeout(() => {
+                showCardDetail(c, isAffordable);
+                e.preventDefault();
+            }, longPressDuration);
+        };
+
+        const cancelPress = () => {
+            clearTimeout(pressTimer);
+        };
+
+        const handleClick = () => {
+            clearTimeout(pressTimer);
+            playCard(i);
+        };
+
+        d.addEventListener('mousedown', startPress);
+        d.addEventListener('touchstart', startPress, { passive: false });
+        d.addEventListener('mouseup', cancelPress);
+        d.addEventListener('mouseleave', cancelPress);
+        d.addEventListener('touchend', cancelPress);
+        d.addEventListener('touchcancel', cancelPress);
+        d.addEventListener('click', handleClick);
+
         handEl.appendChild(d);
         c.isNew = false;
     });
@@ -268,15 +351,20 @@ function renderField(id, units, isEnemy) {
     units.forEach(u => {
         const d = document.createElement('div');
         const borderColor = isEnemy ? '#8b3a3a' : '#4a6fa5';
-        d.className = `unit-card w-20 h-24 shrink-0 flex flex-col justify-between ${u.broken ? 'opacity-40 grayscale' : ''} ${u.animClass || ''}`;
+        d.className = `unit-card w-30 h-40 shrink-0 flex flex-col justify-between ${u.broken ? 'opacity-40 grayscale' : ''} ${u.animClass || ''}`;
+
+        const icon = getUnitIcon(u);
+
         d.style.cssText = `
             background: linear-gradient(145deg, #2a2520, #1a1510);
             border: 2px solid ${borderColor};
-            border-radius: 4px;
-            padding: 6px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+            border-radius: 6px;
+            padding: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
             position: relative;
-            ${isEnemy ? 'transform: rotate(180deg);' : ''}
+            box-sizing: border-box;
+            width: 120px;
+            height: 160px;
         `;
 
         const hpPercent = (u.hp / u.maxHp) * 100;
@@ -284,24 +372,50 @@ function renderField(id, units, isEnemy) {
 
         d.innerHTML = `
             <div>
-                <div class="text-[8px] font-bold" style="color: ${isEnemy ? '#ff8787' : '#93c5fd'};">${u.name}</div>
-                <div class="text-[6px]" style="color: #8a7f70;">${u.ability}</div>
-                ${u.broken ? `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 10px; font-weight: bold; color: #ff4444; text-shadow: 0 0 6px rgba(255,68,68,0.8); font-family: 'DotGothic16', sans-serif;">故障</div>` : ''}
+                <div class="text-[10px] font-bold mb-2" style="color: ${isEnemy ? '#ff8787' : '#93c5fd'}; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${u.name}</div>
+                <div style="text-align: center; background: radial-gradient(circle, rgba(74,63,48,0.3) 0%, transparent 70%); border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; margin: 4px auto;">
+                    <div style="font-size: 28px; line-height: 1; text-shadow: 0 2px 4px rgba(0,0,0,0.7);">${icon}</div>
+                </div>
+                <div class="text-[7px] text-center font-bold" style="color: #fbbf24; background: rgba(251,191,36,0.25); padding: 2px 4px; border-radius: 3px; border: 1px solid #fbbf24; margin-top: 2px; margin-bottom: 2px; box-shadow: 0 0 4px rgba(251,191,36,0.3);">${u.ability}</div>
+                ${u.broken ? `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 12px; font-weight: bold; color: #ff4444; text-shadow: 0 0 8px rgba(255,68,68,0.9); font-family: 'DotGothic16', sans-serif; z-index: 10;">故障</div>` : ''}
             </div>
-            <div class="flex flex-col text-[7px] font-mono gap-0.5">
-                <div style="width: 100%; height: 3px; background: #1a1510; border-radius: 2px; overflow: hidden; border: 1px solid #4a3f30; margin-bottom: 2px;">
-                    <div style="width: ${hpPercent}%; height: 100%; background: ${hpColor}; transition: width 0.3s;"></div>
+            <div class="flex flex-col text-[8px] font-mono gap-0.5 mt-1">
+                <div style="width: 100%; height: 4px; background: #1a1510; border-radius: 2px; overflow: hidden; border: 1px solid #4a3f30; margin-bottom: 2px;">
+                    <div style="width: ${hpPercent}%; height: 100%; background: ${hpColor}; transition: width 0.3s; box-shadow: 0 0 4px ${hpColor};"></div>
                 </div>
                 <div class="flex justify-between">
-                    <span style="color: #fb923c;">攻:${u.atk}</span>
-                    <span style="color: #60a5fa;">防:${u.def}</span>
+                    <span style="color: #fb923c; font-weight: bold;">⚔️${u.atk}</span>
+                    <span style="color: #60a5fa; font-weight: bold;">🛡️${u.def}</span>
                 </div>
                 <div class="flex justify-between">
-                    <span style="color: ${hpColor};">HP:${u.hp}/${u.maxHp}</span>
-                    <span style="color: #c084fc;">速:${u.spd}</span>
+                    <span style="color: ${hpColor}; font-weight: bold;">❤️${u.hp}/${u.maxHp}</span>
+                    <span style="color: #c084fc; font-weight: bold;">⚡${u.spd}</span>
                 </div>
             </div>
         `;
+
+        // フィールドカードの長押し検出
+        let pressTimer;
+        const longPressDuration = 500;
+
+        const startPress = (e) => {
+            pressTimer = setTimeout(() => {
+                showUnitDetail(u, isEnemy);
+                e.preventDefault();
+            }, longPressDuration);
+        };
+
+        const cancelPress = () => {
+            clearTimeout(pressTimer);
+        };
+
+        d.addEventListener('mousedown', startPress);
+        d.addEventListener('touchstart', startPress, { passive: false });
+        d.addEventListener('mouseup', cancelPress);
+        d.addEventListener('mouseleave', cancelPress);
+        d.addEventListener('touchend', cancelPress);
+        d.addEventListener('touchcancel', cancelPress);
+
         el.appendChild(d);
     });
 }
@@ -455,6 +569,27 @@ async function executeCombat() {
         updateUI();
         await sleep(250);
 
+        // 迎撃能力（攻撃を受ける前に反撃）
+        if (target && target.ability === '迎撃' && target.hp > 0 && !target.broken) {
+            addLog(`${target.name}の迎撃射撃！`, 'miss');
+            // 迎撃ダメージ計算（攻撃力の50%）
+            const interceptDmg = Math.max(Math.floor(target.atk * 0.5), 1);
+            u.hp -= interceptDmg;
+            
+            showDamageNumber(interceptDmg, isPlayer ? 
+                document.getElementById('player-field').children[attacker.index] : 
+                document.getElementById('enemy-field').children[attacker.index]
+            );
+
+            if (u.hp <= 0) {
+                addLog(`${u.name}は迎撃され撃墜された！`, 'damage');
+                u.animClass = '';
+                updateUI();
+                await sleep(150);
+                continue; // 攻撃キャンセル
+            }
+        }
+
         applyDamage(u, target, !isPlayer, attacker.index);
 
         u.animClass = '';
@@ -466,8 +601,16 @@ async function executeCombat() {
     checkWin();
 
     if (!state.isGameOver) {
-        state.p.res += NATIONS[state.p.nation].supply;
-        state.e.res += NATIONS[state.e.nation].supply;
+        // 予算補充
+        let pSupply = NATIONS[state.p.nation].supply;
+        let eSupply = NATIONS[state.e.nation].supply;
+
+        // イギリスの欠陥：補給線脆弱
+        if (state.p.nation === 'Britain') pSupply -= 1;
+        if (state.e.nation === 'Britain') eSupply -= 1;
+
+        state.p.res += pSupply;
+        state.e.res += eSupply;
 
         // ターン終了時に2枚ドロー
         if (state.gameMode === 'cpu') {
@@ -516,9 +659,14 @@ function applyDamage(attacker, defender, targetIsPlayer, attackerIndex) {
     const attackerNation = targetIsPlayer ? state.e.nation : state.p.nation;
     if (attackerNation === 'Poland') atk = Math.max(1, atk - 1);
 
-    // 中国の訓練不足（命中率低下）
-    if (attackerNation === 'China' && Math.random() < 0.3) {
-        addLog(`${attacker.name}の攻撃は外れた！`, 'miss');
+    // 日本の決死攻撃（攻撃力+2）
+    if (attacker.ability === '決死') {
+        atk += 2;
+    }
+
+    // 中国とソ連の訓練不足/通信不全（命中率低下）
+    if ((attackerNation === 'China' || attackerNation === 'USSR') && Math.random() < 0.3) {
+        addLog(`${attacker.name}の攻撃は失敗した...`, 'miss');
         return; // 30%でミス
     }
 
@@ -622,8 +770,8 @@ function resolveEndOfTurn() {
             }
             // アメリカの世論の圧力
             if (state.p.nation === 'USA') {
-                state.p.hp -= 5;
-                addLog(`世論の圧力で自軍HQに5ダメージ`, 'damage');
+                state.p.hp -= 3;
+                addLog(`世論の圧力で自軍HQに3ダメージ`, 'damage');
             }
             return false;
         }
@@ -654,8 +802,8 @@ function resolveEndOfTurn() {
             }
             // アメリカの世論の圧力
             if (state.e.nation === 'USA') {
-                state.e.hp -= 5;
-                addLog(`世論の圧力で敵HQに5ダメージ`, 'damage');
+                state.e.hp -= 3;
+                addLog(`世論の圧力で敵HQに3ダメージ`, 'damage');
             }
             return false;
         }
@@ -793,3 +941,248 @@ document.getElementById('ready-btn').onclick = function() {
     updateUI();
     updateExecuteButton();
 };
+
+// カード詳細表示（手札用）
+function showCardDetail(card, isAffordable) {
+    const modal = document.createElement('div');
+    modal.className = 'card-detail-modal';
+    modal.innerHTML = `
+        <div class="card-detail">
+            <div class="card-detail-name">${card.name}</div>
+            <div class="card-detail-cost">コスト: ${card.cost}</div>
+            <div class="card-detail-ability">${card.ability}</div>
+            <div class="card-detail-desc">${card.desc}</div>
+            <div class="card-detail-stats">
+                <div class="card-detail-stat" style="border-color: #fb923c; color: #fb923c;">
+                    攻撃力<br><strong style="font-size: 24px;">${card.atk}</strong>
+                </div>
+                <div class="card-detail-stat" style="border-color: #60a5fa; color: #60a5fa;">
+                    防御力<br><strong style="font-size: 24px;">${card.def}</strong>
+                </div>
+                <div class="card-detail-stat" style="border-color: #4ade80; color: #4ade80;">
+                    HP<br><strong style="font-size: 24px;">${card.hp}</strong>
+                </div>
+                <div class="card-detail-stat" style="border-color: #c084fc; color: #c084fc;">
+                    速度<br><strong style="font-size: 24px;">${card.spd}</strong>
+                </div>
+            </div>
+            ${!isAffordable ? '<div style="margin-top: 16px; color: #ff6b6b; font-size: 14px; text-align: center;">⚠ 予算不足</div>' : ''}
+        </div>
+    `;
+
+    // クリックで閉じる
+    modal.onclick = () => modal.remove();
+
+    document.body.appendChild(modal);
+}
+
+// ユニット詳細表示（フィールド用）
+function showUnitDetail(unit, isEnemy) {
+    const hpPercent = (unit.hp / unit.maxHp) * 100;
+    const hpColor = hpPercent > 66 ? '#4ade80' : hpPercent > 33 ? '#fbbf24' : '#ff6b6b';
+
+    const modal = document.createElement('div');
+    modal.className = 'card-detail-modal';
+    modal.innerHTML = `
+        <div class="card-detail" style="border-color: ${isEnemy ? '#8b3a3a' : '#4a6fa5'};">
+            <div class="card-detail-name" style="color: ${isEnemy ? '#ff8787' : '#93c5fd'};">${unit.name}</div>
+            <div class="card-detail-ability">${unit.ability}</div>
+            ${unit.desc ? `<div class="card-detail-desc">${unit.desc}</div>` : ''}
+            <div class="card-detail-stats">
+                <div class="card-detail-stat" style="border-color: #fb923c; color: #fb923c;">
+                    攻撃力<br><strong style="font-size: 24px;">${unit.atk}</strong>
+                </div>
+                <div class="card-detail-stat" style="border-color: #60a5fa; color: #60a5fa;">
+                    防御力<br><strong style="font-size: 24px;">${unit.def}</strong>
+                </div>
+                <div class="card-detail-stat" style="border-color: ${hpColor}; color: ${hpColor};">
+                    HP<br><strong style="font-size: 24px;">${unit.hp}/${unit.maxHp}</strong>
+                </div>
+                <div class="card-detail-stat" style="border-color: #c084fc; color: #c084fc;">
+                    速度<br><strong style="font-size: 24px;">${unit.spd}</strong>
+                </div>
+            </div>
+            ${unit.broken ? '<div style="margin-top: 16px; color: #ff6b6b; font-size: 18px; text-align: center; font-family: \'DotGothic16\', sans-serif;">⚠ 故障中</div>' : ''}
+        </div>
+    `;
+
+    // クリックで閉じる
+    modal.onclick = () => modal.remove();
+
+    document.body.appendChild(modal);
+}
+
+// チュートリアル機能
+function openTutorial() {
+    tutorialState.currentPage = 0;
+    document.getElementById('tutorial-modal').classList.remove('hidden');
+    document.getElementById('tutorial-modal').classList.add('flex');
+    updateTutorialPage();
+}
+
+function closeTutorial() {
+    document.getElementById('tutorial-modal').classList.add('hidden');
+    document.getElementById('tutorial-modal').classList.remove('flex');
+}
+
+function changeTutorialPage(delta) {
+    tutorialState.currentPage = Math.max(0, Math.min(tutorialState.totalPages - 1, tutorialState.currentPage + delta));
+    updateTutorialPage();
+}
+
+function updateTutorialPage() {
+    const page = tutorialState.currentPage;
+    const content = document.getElementById('tutorial-content');
+
+    // ページインジケーター更新
+    for (let i = 0; i < tutorialState.totalPages; i++) {
+        const indicator = document.getElementById(`page-indicator-${i}`);
+        if (indicator) {
+            indicator.style.background = i === page ? '#d4af37' : '#4a3f30';
+        }
+    }
+
+    // ナビゲーションボタン表示制御
+    document.getElementById('tutorial-prev').style.display = page === 0 ? 'none' : 'block';
+    document.getElementById('tutorial-next').style.display = page === tutorialState.totalPages - 1 ? 'none' : 'block';
+    document.getElementById('tutorial-close').style.display = page === tutorialState.totalPages - 1 ? 'block' : 'none';
+
+    // 各ページのコンテンツ
+    const pages = [
+        // ページ0: ゲーム概要
+        `
+            <h2 class="text-2xl font-bold mb-4 text-center" style="color: #d4af37;">ゲーム概要</h2>
+            <div style="color: #d4c5b0; line-height: 1.8; font-size: 13px;">
+                <p class="mb-3">「戦線：国家の欠陥」は第二次世界大戦をテーマにしたターン制カードバトルゲームです。</p>
+                <div class="mb-3 p-3 rounded" style="background: rgba(74,63,48,0.3); border: 1px solid #4a3f30;">
+                    <div class="font-bold mb-2" style="color: #fbbf24;">勝利条件</div>
+                    <p style="color: #8a7f70; font-size: 12px;">敵軍の司令部HPを0にする</p>
+                </div>
+                <div class="mb-3 p-3 rounded" style="background: rgba(74,63,48,0.3); border: 1px solid #4a3f30;">
+                    <div class="font-bold mb-2" style="color: #ff6b6b;">敗北条件</div>
+                    <p style="color: #8a7f70; font-size: 12px;">自軍の司令部HPが0になる</p>
+                </div>
+                <p style="color: #8a7f70; font-size: 11px; text-align: center;">各国家は固有の欠陥を持っています</p>
+            </div>
+        `,
+        // ページ1: ゲームの流れ
+        `
+            <h2 class="text-2xl font-bold mb-4 text-center" style="color: #d4af37;">ゲームの流れ</h2>
+            <div style="color: #d4c5b0; line-height: 1.6; font-size: 13px;">
+                <div class="mb-3 p-3 rounded" style="background: rgba(59,130,246,0.2); border-left: 3px solid #60a5fa;">
+                    <div class="font-bold mb-1" style="color: #60a5fa;">1. 配置フェーズ</div>
+                    <p style="color: #8a7f70; font-size: 11px;">予算を使って手札からカードを戦場に配備</p>
+                </div>
+                <div class="mb-3 p-3 rounded" style="background: rgba(239,68,68,0.2); border-left: 3px solid #ff6b6b;">
+                    <div class="font-bold mb-1" style="color: #ff6b6b;">2. 戦闘フェーズ</div>
+                    <p style="color: #8a7f70; font-size: 11px;">「作戦実行」で戦闘開始。速度順に攻撃</p>
+                </div>
+                <div class="mb-3 p-3 rounded" style="background: rgba(74,222,128,0.2); border-left: 3px solid #4ade80;">
+                    <div class="font-bold mb-1" style="color: #4ade80;">3. ターン終了</div>
+                    <p style="color: #8a7f70; font-size: 11px;">予算補充（各国により異なる）</p>
+                    <p style="color: #8a7f70; font-size: 11px;">カード2枚ドロー</p>
+                </div>
+                <p style="color: #8a7f70; font-size: 10px; text-align: center; margin-top: 8px;">初回は手札4枚からスタート</p>
+            </div>
+        `,
+        // ページ2: カードの見方
+        `
+            <h2 class="text-2xl font-bold mb-4 text-center" style="color: #d4af37;">カードの見方</h2>
+            <div style="color: #d4c5b0; line-height: 1.6; font-size: 12px;">
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <div class="p-2 rounded text-center" style="background: rgba(251,191,36,0.2); border: 1px solid #fbbf24;">
+                        <div class="font-bold" style="color: #fbbf24;">コスト</div>
+                        <p style="color: #8a7f70; font-size: 10px;">配備に必要な予算</p>
+                    </div>
+                    <div class="p-2 rounded text-center" style="background: rgba(251,146,60,0.2); border: 1px solid #fb923c;">
+                        <div class="font-bold" style="color: #fb923c;">攻撃力</div>
+                        <p style="color: #8a7f70; font-size: 10px;">与えるダメージ</p>
+                    </div>
+                    <div class="p-2 rounded text-center" style="background: rgba(96,165,250,0.2); border: 1px solid #60a5fa;">
+                        <div class="font-bold" style="color: #60a5fa;">防御力</div>
+                        <p style="color: #8a7f70; font-size: 10px;">受けるダメージ減</p>
+                    </div>
+                    <div class="p-2 rounded text-center" style="background: rgba(74,222,128,0.2); border: 1px solid #4ade80;">
+                        <div class="font-bold" style="color: #4ade80;">HP</div>
+                        <p style="color: #8a7f70; font-size: 10px;">耐久力</p>
+                    </div>
+                    <div class="p-2 rounded text-center" style="background: rgba(192,132,252,0.2); border: 1px solid #c084fc;">
+                        <div class="font-bold" style="color: #c084fc;">速度</div>
+                        <p style="color: #8a7f70; font-size: 10px;">攻撃順（高い順）</p>
+                    </div>
+                    <div class="p-2 rounded text-center" style="background: rgba(212,175,55,0.2); border: 1px solid #d4af37;">
+                        <div class="font-bold" style="color: #d4af37;">特殊能力</div>
+                        <p style="color: #8a7f70; font-size: 10px;">固有の効果</p>
+                    </div>
+                </div>
+                <p style="color: #8a7f70; font-size: 10px; text-align: center;">カードを長押しで詳細表示</p>
+            </div>
+        `,
+        // ページ3: 国家の特性
+        `
+            <h2 class="text-2xl font-bold mb-4 text-center" style="color: #d4af37;">国家の特性と欠陥</h2>
+            <div style="color: #d4c5b0; line-height: 1.5; font-size: 11px; max-height: 320px; overflow-y: auto;">
+                <div class="mb-2 p-2 rounded" style="background: rgba(139,58,58,0.2); border: 1px solid #8b3a3a;">
+                    <div class="font-bold" style="color: #ff8787;">🇩🇪 ドイツ（予算5）</div>
+                    <p style="color: #ff6b6b; font-size: 10px;">欠陥：機械的故障（20%で配備時故障）</p>
+                </div>
+                <div class="mb-2 p-2 rounded" style="background: rgba(139,58,58,0.2); border: 1px solid #8b3a3a;">
+                    <div class="font-bold" style="color: #ff8787;">🇯🇵 日本（予算5）</div>
+                    <p style="color: #ff6b6b; font-size: 10px;">欠陥：紙装甲（被ダメージ1.3倍）</p>
+                </div>
+                <div class="mb-2 p-2 rounded" style="background: rgba(139,58,58,0.2); border: 1px solid #8b3a3a;">
+                    <div class="font-bold" style="color: #ff8787;">🇷🇺 ソ連（予算5）</div>
+                    <p style="color: #ff6b6b; font-size: 10px;">欠陥：訓練不足（30%で攻撃ミス）</p>
+                </div>
+                <div class="mb-2 p-2 rounded" style="background: rgba(139,58,58,0.2); border: 1px solid #8b3a3a;">
+                    <div class="font-bold" style="color: #ff8787;">🇺🇸 アメリカ（予算7）</div>
+                    <p style="color: #ff6b6b; font-size: 10px;">欠陥：世論の圧力（ユニット損失時HQ-5）</p>
+                </div>
+                <div class="mb-2 p-2 rounded" style="background: rgba(139,58,58,0.2); border: 1px solid #8b3a3a;">
+                    <div class="font-bold" style="color: #ff8787;">🇵🇱 ポーランド（予算4）</div>
+                    <p style="color: #ff6b6b; font-size: 10px;">欠陥：旧式装備（全ユニット攻撃力-1）</p>
+                </div>
+                <div class="mb-2 p-2 rounded" style="background: rgba(139,58,58,0.2); border: 1px solid #8b3a3a;">
+                    <div class="font-bold" style="color: #ff8787;">🇬🇧 イギリス（予算5）</div>
+                    <p style="color: #ff6b6b; font-size: 10px;">欠陥：供給遅延（ターン開始時予算-1）</p>
+                </div>
+                <div class="mb-2 p-2 rounded" style="background: rgba(139,58,58,0.2); border: 1px solid #8b3a3a;">
+                    <div class="font-bold" style="color: #ff8787;">🇫🇷 フランス（予算5）</div>
+                    <p style="color: #ff6b6b; font-size: 10px;">欠陥：内部分裂（25%でカード配備失敗）</p>
+                </div>
+                <div class="mb-2 p-2 rounded" style="background: rgba(139,58,58,0.2); border: 1px solid #8b3a3a;">
+                    <div class="font-bold" style="color: #ff8787;">🇮🇹 イタリア（予算4）</div>
+                    <p style="color: #ff6b6b; font-size: 10px;">欠陥：低士気（HP半分以下で20%撤退）</p>
+                </div>
+                <div class="mb-2 p-2 rounded" style="background: rgba(139,58,58,0.2); border: 1px solid #8b3a3a;">
+                    <div class="font-bold" style="color: #ff8787;">🇨🇳 中国（予算3）</div>
+                    <p style="color: #ff6b6b; font-size: 10px;">欠陥：訓練不足（30%で攻撃ミス）</p>
+                </div>
+            </div>
+        `,
+        // ページ4: 戦闘のコツ
+        `
+            <h2 class="text-2xl font-bold mb-4 text-center" style="color: #d4af37;">戦闘のコツ</h2>
+            <div style="color: #d4c5b0; line-height: 1.7; font-size: 12px;">
+                <div class="mb-3 p-3 rounded" style="background: rgba(74,63,48,0.3); border: 1px solid #4a3f30;">
+                    <div class="font-bold mb-1" style="color: #fbbf24;">⚡ 速度が重要</div>
+                    <p style="color: #8a7f70; font-size: 11px;">速度の高いユニットが先に攻撃。敵を倒せば反撃されない</p>
+                </div>
+                <div class="mb-3 p-3 rounded" style="background: rgba(74,63,48,0.3); border: 1px solid #4a3f30;">
+                    <div class="font-bold mb-1" style="color: #60a5fa;">🛡️ オーバーキルに注意</div>
+                    <p style="color: #8a7f70; font-size: 11px;">ユニット破壊時の余剰ダメージは司令部に直撃</p>
+                </div>
+                <div class="mb-3 p-3 rounded" style="background: rgba(74,63,48,0.3); border: 1px solid #4a3f30;">
+                    <div class="font-bold mb-1" style="color: #4ade80;">💰 予算管理</div>
+                    <p style="color: #8a7f70; font-size: 11px;">低コストユニットと高コストユニットをバランスよく配備</p>
+                </div>
+                <div class="mb-3 p-3 rounded" style="background: rgba(74,63,48,0.3); border: 1px solid #4a3f30;">
+                    <div class="font-bold mb-1" style="color: #c084fc;">✨ 特殊能力活用</div>
+                    <p style="color: #8a7f70; font-size: 11px;">国家ごとの特殊能力を活かした戦術を組み立てよう</p>
+                </div>
+            </div>
+        `
+    ];
+
+    content.innerHTML = pages[page];
+}

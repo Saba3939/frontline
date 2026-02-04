@@ -51,7 +51,7 @@
     </div>
 
     <!-- プレイヤーエリア -->
-    <div class="bg-zinc-900 border-t p-2 pb-6" style="background: linear-gradient(180deg, #1a1510 0%, #2a2520 100%) !important; border-top: 2px solid #4a6fa5 !important;">
+    <div class="bg-zinc-900 border-t p-2 pb-4" style="background: linear-gradient(180deg, #1a1510 0%, #2a2520 100%) !important; border-top: 2px solid #4a6fa5 !important;">
         <div class="flex justify-between items-center px-4 mb-1">
             <div class="flex flex-col">
                 <div id="player-name" class="text-[10px] font-bold uppercase" style="color: #60a5fa; text-shadow: 0 0 8px rgba(96,165,250,0.5);">自軍司令部</div>
@@ -74,7 +74,7 @@
             <div class="text-[8px] uppercase" style="color: #8a7f70; font-weight: bold;">手札状況</div>
             <div id="hand-count" class="text-[8px]" style="color: #a8a29e;">0 / 5</div>
         </div>
-        <div id="player-hand" class="scroll-area h-28"></div>
+        <div id="player-hand" class="scroll-area h-44"></div>
     </div>
 
     <!-- 初期選択 -->
@@ -97,6 +97,9 @@
                     <button id="pvp-mode-btn" class="mode-btn p-4 rounded-lg hover:border-white transition-all active:scale-95" style="background: linear-gradient(145deg, #2a2520, #1a1510); border: 2px solid #d4af37;">
                         <div class="text-lg font-bold mb-1" style="color: #d4af37;">⚔️ 対人戦</div>
                         <div class="text-[9px]" style="color: #8a7f70;">同じデバイスで2人対戦</div>
+                    </button>
+                    <button id="tutorial-btn" class="p-3 rounded-lg hover:border-white transition-all active:scale-95" style="background: linear-gradient(145deg, #2a2520, #1a1510); border: 2px solid #8a7f70; margin-top: 8px;">
+                        <div class="text-sm font-bold" style="color: #d4c5b0;">📖 ルール説明</div>
                     </button>
                 </div>
             </div>
@@ -127,6 +130,32 @@
             <div class="text-3xl font-bold mb-4" style="color: #d4af37; text-shadow: 0 0 20px rgba(212,175,55,0.5);">ターン交代</div>
             <div id="next-player-name" class="text-xl mb-6" style="color: #d4c5b0;"></div>
             <button id="ready-btn" class="px-8 py-3 rounded font-bold shadow-xl active:scale-95 transition-all" style="background: linear-gradient(145deg, #3b82f6, #2563eb); color: white; border: 2px solid #60a5fa;">準備完了</button>
+        </div>
+    </div>
+
+    <!-- チュートリアルモーダル -->
+    <div id="tutorial-modal" class="fixed inset-0 z-[70] hidden items-center justify-center p-6" style="background: linear-gradient(180deg, rgba(26,20,16,0.98) 0%, rgba(13,10,8,0.98) 100%); overflow-y: auto;">
+        <div class="w-full max-w-md">
+            <div style="border: 3px solid #4a3f30; padding: 24px; border-radius: 8px; background: linear-gradient(145deg, #2a2520, #1a1510); box-shadow: 0 20px 60px rgba(0,0,0,0.8);">
+                <!-- ページインジケーター -->
+                <div class="flex justify-center gap-2 mb-4">
+                    <div id="page-indicator-0" class="w-2 h-2 rounded-full bg-gray-600"></div>
+                    <div id="page-indicator-1" class="w-2 h-2 rounded-full bg-gray-600"></div>
+                    <div id="page-indicator-2" class="w-2 h-2 rounded-full bg-gray-600"></div>
+                    <div id="page-indicator-3" class="w-2 h-2 rounded-full bg-gray-600"></div>
+                    <div id="page-indicator-4" class="w-2 h-2 rounded-full bg-gray-600"></div>
+                </div>
+
+                <!-- チュートリアルコンテンツ -->
+                <div id="tutorial-content"></div>
+
+                <!-- ナビゲーションボタン -->
+                <div class="flex justify-between mt-6 gap-3">
+                    <button id="tutorial-prev" class="px-6 py-2 rounded font-bold transition-all active:scale-95" style="background: linear-gradient(145deg, #2a2520, #1a1510); color: #8a7f70; border: 2px solid #4a3f30;">← 前へ</button>
+                    <button id="tutorial-next" class="px-6 py-2 rounded font-bold transition-all active:scale-95" style="background: linear-gradient(145deg, #3b82f6, #2563eb); color: white; border: 2px solid #60a5fa;">次へ →</button>
+                    <button id="tutorial-close" class="hidden px-6 py-2 rounded font-bold transition-all active:scale-95" style="background: linear-gradient(145deg, #d4af37, #b8941f); color: #1a1510; border: 2px solid #f4cf67;">閉じる</button>
+                </div>
+            </div>
         </div>
     </div>
 
