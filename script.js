@@ -19,6 +19,7 @@ function getUnitIcon(unit) {
     const ability = unit.ability;
 
     // 名前ベースのアイコン
+    if (name.includes('桜花')) return '🌸';
     if (name.includes('戦車') || name.includes('T-34') || name.includes('パンター') || name.includes('チャーチル') || name.includes('M4シャーマン') || name.includes('KV-1') || name.includes('M13') || name.includes('7TP') || name.includes('M10')) return '🛡️';
     if (name.includes('航空機') || name.includes('スツーカ') || name.includes('ゼロ戦') || name.includes('スピットファイア') || name.includes('P-51') || name.includes('急降下') || name.includes('B-17') || name.includes('P-40') || name.includes('I-16') || name.includes('一式') || name.includes('ランカスター') || name.includes('PZL') || name.includes('Il-2')) return '✈️';
     if (name.includes('戦艦') || name.includes('ビスマルク') || name.includes('大和') || name.includes('アイオワ') || name.includes('ローマ')) return '⚓';
@@ -191,11 +192,11 @@ function getWeightedCard(pool) {
     return weightedPool[Math.floor(Math.random() * weightedPool.length)];
 }
 
-function draw(isInitial = false) {
+function draw(isInitial = false, count = null) {
     const pool = CARDS[state.p.nation];
-    const count = isInitial ? 4 : 2;
+    const drawCount = count || (isInitial ? 4 : 2);
 
-    for(let i=0; i<count; i++) {
+    for(let i=0; i<drawCount; i++) {
         if(state.p.hand.length < state.handLimit) {
             const card = getWeightedCard(pool);
             state.p.hand.push({
@@ -208,13 +209,13 @@ function draw(isInitial = false) {
 }
 
 // 敵（プレイヤー2）のドロー
-function drawEnemy(isInitial = false) {
+function drawEnemy(isInitial = false, count = null) {
     if (state.gameMode === 'cpu') return; // CPU戦では使用しない
 
     const pool = CARDS[state.e.nation];
-    const count = isInitial ? 4 : 2;
+    const drawCount = count || (isInitial ? 4 : 2);
 
-    for(let i=0; i<count; i++) {
+    for(let i=0; i<drawCount; i++) {
         if(state.e.hand.length < state.handLimit) {
             const card = getWeightedCard(pool);
             state.e.hand.push({
@@ -260,7 +261,13 @@ function updateUI() {
         d.className = `w-30 h-40 shrink-0 flex flex-col justify-between active:scale-90 transition-transform cursor-pointer ${c.isNew ? 'draw-anim' : ''}`;
 
         // 予算不足の場合はグレーアウト
-        const isAffordable = currentPlayerData.res >= c.cost;
+        let cost = c.cost;
+        // アメリカの総力戦コストダウン
+        if (currentPlayerData.nation === 'USA' && currentPlayerData.hp <= 20) {
+            cost = Math.max(0, cost - 2);
+        }
+        
+        const isAffordable = currentPlayerData.res >= cost;
         const opacity = isAffordable ? '1' : '0.5';
 
         // ユニットタイプに応じたアイコン取得
@@ -282,7 +289,7 @@ function updateUI() {
             <div style="opacity: ${opacity};">
                 <div class="flex justify-between items-center font-bold text-[10px] mb-2">
                     <span class="truncate pr-1" style="color: #d4c5b0; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${c.name}</span>
-                    <span style="color: #fbbf24; background: rgba(251,191,36,0.25); padding: 2px 5px; border-radius: 3px; border: 1px solid #fbbf24; font-size: 9px; box-shadow: 0 0 4px rgba(251,191,36,0.3);">${c.cost}</span>
+                    <span style="color: #fbbf24; background: rgba(251,191,36,0.25); padding: 2px 5px; border-radius: 3px; border: 1px solid #fbbf24; font-size: 9px; box-shadow: 0 0 4px rgba(251,191,36,0.3);">${cost}</span>
                 </div>
                 <div style="text-align: center; background: radial-gradient(circle, rgba(74,63,48,0.3) 0%, transparent 70%); border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; margin: 4px auto;">
                     <div style="font-size: 28px; line-height: 1; text-shadow: 0 2px 4px rgba(0,0,0,0.7);">${icon}</div>
@@ -430,8 +437,15 @@ function playCard(idx) {
     const currentField = isPlayer2Turn ? state.e.field : state.p.field;
 
     const c = currentHand[idx];
-    if (currentPlayerData.res >= c.cost) {
-        currentPlayerData.res -= c.cost;
+    
+    let cost = c.cost;
+    // アメリカの総力戦コストダウン
+    if (currentPlayerData.nation === 'USA' && currentPlayerData.hp <= 20) {
+        cost = Math.max(0, cost - 2);
+    }
+
+    if (currentPlayerData.res >= cost) {
+        currentPlayerData.res -= cost;
         const unit = {
             ...c,
             maxHp: c.hp,
@@ -439,7 +453,7 @@ function playCard(idx) {
         };
 
         const prefix = isPlayer2Turn ? 'P2: ' : (isPvP ? 'P1: ' : '');
-        addLog(`${prefix}${c.name}を配備（予算-${c.cost}）`, 'normal');
+        addLog(`${prefix}${c.name}を配備（予算-${cost}）`, 'normal');
 
         if (unit.broken) {
             addLog(`${c.name}が故障状態で配備された！`, 'damage');
@@ -609,16 +623,110 @@ async function executeCombat() {
         if (state.p.nation === 'Britain') pSupply -= 1;
         if (state.e.nation === 'Britain') eSupply -= 1;
 
+        // 【新機能】総力戦モード（HP30%以下で発動）
+        const pinchThreshold = 20;
+        
+        if (state.p.hp <= pinchThreshold) {
+            // 予算ボーナス強化 (+2 -> +5)
+            pSupply += 5;
+            
+            // まだ総力戦演出が出ていない場合
+            if (!document.body.classList.contains('total-war-mode-p')) {
+                document.body.classList.add('total-war-mode-p');
+                showTotalWarCutin(state.p.nation);
+                
+                // 日本固有：集中線エフェクト
+                if (state.p.nation === 'Japan') {
+                    const overlay = document.createElement('div');
+                    overlay.className = 'japan-total-war';
+                    document.body.appendChild(overlay);
+                } else {
+                    document.body.classList.add('total-war-alert');
+                }
+            }
+            
+            addLog(`${NATIONS[state.p.nation].name}が総力戦体制！(予算+5)`, 'heal');
+            
+            // 日本固有：万歳突撃＆桜花支給
+            if (state.p.nation === 'Japan') {
+                addLog('万歳突撃！全軍突撃！（ATK+3）', 'damage');
+                state.p.field.forEach(u => {
+                    u.atk += 3;
+                    u.hp -= 2;
+                });
+                
+                // 桜花支給
+                if (state.p.hand.length < state.handLimit) {
+                    state.p.hand.push({
+                        name: '桜花', cost: 0, atk: 30, def: 0, hp: 1, spd: 10,
+                        ability: '特攻', desc: '敵1体を確実に破壊し自壊',
+                        id: Math.random(), isNew: true
+                    });
+                    addLog('決戦兵器「桜花」配備完了', 'damage');
+                }
+            }
+
+            // アメリカ固有：産業の巨人（コストダウン）
+            if (state.p.nation === 'USA') {
+                addLog('産業の巨人発動！全コスト-2', 'heal');
+            }
+        }
+
+        if (state.e.hp <= pinchThreshold) {
+            // 敵も強化
+            eSupply += 5;
+            
+            // まだ総力戦演出が出ていない場合
+            if (!document.body.classList.contains('total-war-mode-e')) {
+                document.body.classList.add('total-war-mode-e');
+                if (state.gameMode !== 'cpu') {
+                    showTotalWarCutin(state.e.nation);
+                } else {
+                    addLog(`敵軍が総力戦体制！(予算+5)`, 'damage');
+                }
+            }
+
+            // 日本固有（敵）
+            if (state.e.nation === 'Japan') {
+                addLog('敵軍が万歳突撃を敢行！（ATK+3）', 'damage');
+                state.e.field.forEach(u => {
+                    u.atk += 3;
+                    u.hp -= 2;
+                });
+                // 敵AIも桜花を使用
+                if (state.e.hand.length < state.handLimit) {
+                    state.e.hand.push({
+                        name: '桜花', cost: 0, atk: 30, def: 0, hp: 1, spd: 10,
+                        ability: '特攻', desc: '敵1体を確実に破壊し自壊',
+                        id: Math.random(), isNew: true
+                    });
+                }
+            }
+        }
+
         state.p.res += pSupply;
         state.e.res += eSupply;
 
-        // ターン終了時に2枚ドロー
+        // ターン終了時にドロー
+        let pDrawCount = 2;
+        let eDrawCount = 2;
+
+        // 総力戦時の追加ドロー強化 (+1 -> +2)
+        if (state.p.hp <= pinchThreshold) {
+            pDrawCount += 2;
+            addLog(`${NATIONS[state.p.nation].name}に緊急物資到着！(ドロー+2)`, 'heal');
+        }
+        if (state.e.hp <= pinchThreshold && state.gameMode !== 'cpu') {
+            eDrawCount += 2;
+            addLog(`敵軍に緊急物資到着！(ドロー+2)`, 'damage');
+        }
+
         if (state.gameMode === 'cpu') {
-            draw();
-            state.e.handCount = Math.min(state.handLimit, state.e.handCount + 2);
+            draw(false, pDrawCount);
+            state.e.handCount = Math.min(state.handLimit, state.e.handCount + eDrawCount);
         } else {
-            draw();
-            drawEnemy();
+            draw(false, pDrawCount);
+            drawEnemy(false, eDrawCount);
         }
 
         // 特殊能力：補給線
@@ -688,8 +796,31 @@ function applyDamage(attacker, defender, targetIsPlayer, attackerIndex) {
         if (defender.ability === '重装甲') def += 2;
         if (defender.ability === '鋼鉄の盾') def += 2;
 
-        // ダメージ計算: max(攻撃 - 防御, 1)
-        let damage = Math.max(atk - def, 1);
+        // 桜花特攻の防御無視処理
+        if (attacker.ability === '特攻') {
+            def = 0; // 防御無視
+            if (defender) {
+                // ユニットへの特攻は、そのユニットの現在HP分のダメージを与える
+                // オーバーキルダメージを出さないことでHQへの貫通を防ぐ
+                damage = defender.hp; 
+                addLog(`${attacker.name}の特攻！${defender.name}を道連れにした！`, 'damage');
+            } else {
+                // HQへの特攻
+                damage = 30; // HQには固定30ダメージ
+                if (targetIsPlayer) state.p.hp -= damage;
+                else state.e.hp -= damage;
+                addLog(`${attacker.name}が司令部に特攻！甚大な被害！`, 'damage');
+                return; // ここで終了
+            }
+        }
+
+        // ダメージ計算: max(攻撃 - 防御, 攻撃力の20%)
+        if (attacker.ability !== '特攻') {
+            // 最低保証ダメージを攻撃力の20%に設定（どんなに硬くても少しは通る）
+            const minDamage = Math.ceil(atk * 0.2);
+            let damageVal = Math.max(atk - def, minDamage);
+            damage = damageVal;
+        }
 
         // 日本の紙装甲（被ダメージ1.3倍）
         const targetNation = targetIsPlayer ? state.p.nation : state.e.nation;
@@ -726,6 +857,9 @@ function applyDamage(attacker, defender, targetIsPlayer, attackerIndex) {
 
         defender.hp -= damage;
 
+        // 特攻の場合はオーバーキル計算をスキップ（自爆なので）
+        if (attacker.ability === '特攻') return;
+
         // オーバーキルダメージ：余剰ダメージを司令部へ
         if (defender.hp < 0) {
             const overkill = Math.abs(defender.hp);
@@ -760,6 +894,14 @@ function resolveEndOfTurn() {
             return false;
         }
 
+        // 特殊能力：特攻（桜花）
+        if (u.ability === '特攻') {
+            addLog(`${u.name}が敵に突入し散華した...`, 'damage');
+            u.hp = 0;
+            // 攻撃処理は既に行われているのでここでは自壊のみ
+            return false;
+        }
+
         // HP0以下で破壊
         if (u.hp <= 0) {
             addLog(`${u.name}が破壊された！`, 'damage');
@@ -789,6 +931,14 @@ function resolveEndOfTurn() {
         // イタリアの低士気：HP半分以下で20%撤退
         if (state.e.nation === 'Italy' && u.hp <= u.maxHp / 2 && Math.random() < 0.2) {
             addLog(`敵${u.name}が撤退した`, 'miss');
+            return false;
+        }
+
+        // 特殊能力：特攻（桜花）
+        if (u.ability === '特攻') {
+            addLog(`${u.name}が敵に突入し散華した...`, 'damage');
+            u.hp = 0;
+            // 攻撃処理は既に行われているのでここでは自壊のみ
             return false;
         }
 
@@ -850,6 +1000,38 @@ function showCutin(unit, isEnemy) {
     `;
     document.body.appendChild(cutin);
     setTimeout(() => cutin.remove(), 600);
+}
+
+// 総力戦カットイン
+function showTotalWarCutin(nation) {
+    const isJapan = nation === 'Japan';
+    const text = isJapan ? "総員玉砕セヨ" : "TOTAL WAR";
+    const subText = isJapan ? "天皇陛下万歳" : "FIGHT TO THE DEATH";
+    
+    const cutin = document.createElement('div');
+    cutin.className = 'cutin-overlay';
+    cutin.style.background = 'rgba(0,0,0,0.7)';
+    cutin.style.zIndex = '1000';
+    
+    cutin.innerHTML = `
+        <div style="text-align: center; color: #ff4444; animation: zoomIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+            <div style="font-size: ${isJapan ? '80px' : '60px'}; font-weight: bold; text-shadow: 0 0 20px rgba(255,0,0,0.8); font-family: ${isJapan ? "'Yuji Syuku', serif" : "'DotGothic16', sans-serif"}; letter-spacing: ${isJapan ? '10px' : 'normal'};">
+                ${text}
+            </div>
+            <div style="font-size: 24px; color: #fff; margin-top: 10px; letter-spacing: 4px;">${subText}</div>
+        </div>
+    `;
+    
+    document.body.appendChild(cutin);
+    
+    // 激しい音効（視覚的な振動）
+    document.body.style.animation = 'shake 0.1s infinite';
+    setTimeout(() => {
+        document.body.style.animation = '';
+        cutin.style.opacity = '0';
+        cutin.style.transition = 'opacity 1s';
+        setTimeout(() => cutin.remove(), 1000);
+    }, 2500);
 }
 
 // ダメージ数値表示

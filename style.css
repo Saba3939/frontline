@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Sawarabi+Mincho&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Sawarabi+Mincho&family=Yuji+Syuku&display=swap');
 
 body {
     font-family: 'Sawarabi Mincho', serif;
@@ -156,6 +156,11 @@ body::before {
 @keyframes cutinSlide {
     0% { transform: translateX(-100%) scale(0.8); opacity: 0; }
     100% { transform: translateX(0) scale(1); opacity: 1; }
+}
+
+@keyframes zoomIn {
+    from { transform: scale(0); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
 }
 
 /* ダメージ数値 */
@@ -495,14 +500,44 @@ body::before {
     to { opacity: 1; }
 }
 
-/* 予算不足の揺れアニメーション */
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    20% { transform: translateX(-10px); }
-    40% { transform: translateX(10px); }
-    60% { transform: translateX(-10px); }
-    80% { transform: translateX(10px); }
+/* 総力戦アラート */
+@keyframes redAlert {
+    0%, 100% { box-shadow: inset 0 0 50px rgba(255,0,0,0); }
+    50% { box-shadow: inset 0 0 100px rgba(255,0,0,0.5); }
 }
+
+.total-war-alert {
+    animation: redAlert 2s infinite;
+}
+
+/* 日本固有の総力戦エフェクト（集中線） */
+.japan-total-war {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    background: 
+        repeating-conic-gradient(
+            from 0deg,
+            rgba(255, 0, 0, 0.1) 0deg 10deg,
+            transparent 10deg 20deg
+        );
+    opacity: 0.6;
+    animation: sunburstRotate 60s linear infinite;
+    mix-blend-mode: overlay;
+}
+
+@keyframes sunburstRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* 筆文字風フォント */
+.font-brush {
+    font-family: 'Yuji Syuku', serif; /* Google Fontsで読み込む必要あり */
+    font-weight: bold;
+}
+
 
 /* カードプレイ時のフラッシュ */
 @keyframes cardPlay {
