@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>戦線：国家の欠陥 - 特殊能力アップデート</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- 敵軍ステータス -->
+    <div class="bg-zinc-900 p-2 border-b border-red-900/40 shadow-xl" style="background: linear-gradient(180deg, #2a2520 0%, #1a1510 100%) !important; border-bottom: 2px solid #8b3a3a !important;">
+        <div class="flex justify-between items-center px-4">
+            <div class="w-1/3 text-left">
+                <div id="enemy-name" class="text-[10px] font-bold uppercase" style="color: #ff6b6b; text-shadow: 0 0 8px rgba(255,107,107,0.5);">敵軍</div>
+                <div class="flex items-center gap-2">
+                    <div class="w-24 h-2 bg-zinc-800 rounded-full overflow-hidden" style="border: 1px solid #4a3f30;">
+                        <div id="enemy-hp-bar" class="hp-bar h-full" style="width: 100%; background: linear-gradient(90deg, #dc2626, #ef4444);"></div>
+                    </div>
+                    <span id="enemy-hp-text" class="text-[10px] font-bold" style="color: #ff6b6b;">50</span>
+                </div>
+            </div>
+            <div class="text-center w-1/3">
+                <div id="status-tag" class="text-[9px] px-3 py-1 rounded border" style="background: rgba(139,58,58,0.2); color: #ff8787; border-color: #8b3a3a; font-family: 'DotGothic16', sans-serif;">待機中</div>
+            </div>
+            <div class="w-1/3 text-right">
+                <div class="flex justify-end items-center gap-3">
+                    <div class="text-right">
+                        <div class="text-[7px] uppercase" style="color: #8a7f70;">予算</div>
+                        <div id="enemy-res" class="text-sm font-bold" style="color: #ff6b6b;">0</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[7px] uppercase" style="color: #8a7f70;">手札</div>
+                        <div id="enemy-cards" class="text-sm font-bold" style="color: #a8a29e;">0/5</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 戦場 -->
+    <div class="flex-1 flex flex-col relative" style="background: linear-gradient(180deg, #0f0c0a 0%, #1a1410 50%, #0f0c0a 100%);">
+        <div id="enemy-field" class="scroll-area h-1/2 items-start" style="border-bottom: 3px solid #8b3a3a; background: linear-gradient(180deg, rgba(139,58,58,0.05) 0%, transparent 100%); box-shadow: inset 0 -20px 30px rgba(139,58,58,0.1);"></div>
+        <div style="position: absolute; top: 50%; left: 0; right: 0; transform: translateY(-50%); text-align: center; pointer-events: none; z-index: 10;">
+            <div style="background: linear-gradient(90deg, transparent, rgba(74,63,48,0.8) 20%, rgba(74,63,48,0.8) 80%, transparent); padding: 4px 0; border-top: 1px solid #6a5f50; border-bottom: 1px solid #6a5f50;">
+                <span style="color: #8a7f70; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; font-family: 'DotGothic16', sans-serif;">─ 戦線 ─</span>
+            </div>
+        </div>
+        <div id="player-field" class="scroll-area h-1/2 items-end" style="background: linear-gradient(180deg, transparent 0%, rgba(74,106,165,0.05) 100%); box-shadow: inset 0 20px 30px rgba(74,106,165,0.1);"></div>
+    </div>
+
+    <!-- プレイヤーエリア -->
+    <div class="bg-zinc-900 border-t p-2 pb-6" style="background: linear-gradient(180deg, #1a1510 0%, #2a2520 100%) !important; border-top: 2px solid #4a6fa5 !important;">
+        <div class="flex justify-between items-center px-4 mb-1">
+            <div class="flex flex-col">
+                <div id="player-name" class="text-[10px] font-bold uppercase" style="color: #60a5fa; text-shadow: 0 0 8px rgba(96,165,250,0.5);">自軍司令部</div>
+                <div class="flex items-center gap-2">
+                    <div class="w-24 h-2 bg-zinc-800 rounded-full overflow-hidden" style="border: 1px solid #4a3f30;">
+                        <div id="player-hp-bar" class="hp-bar h-full" style="width: 100%; background: linear-gradient(90deg, #2563eb, #3b82f6);"></div>
+                    </div>
+                    <span id="player-hp-text" class="text-[10px] font-bold" style="color: #60a5fa;">50</span>
+                </div>
+            </div>
+            <div class="flex flex-col items-center" style="background: linear-gradient(145deg, #3a3025, #2a2015); padding: 6px 12px; border-radius: 6px; border: 2px solid #d4af37;">
+                <div class="text-[8px] font-bold uppercase" style="color: #8a7f70;">現予算</div>
+                <div id="player-res" class="text-xl font-bold" style="color: #fbbf24; text-shadow: 0 0 10px rgba(251,191,36,0.5);">0</div>
+            </div>
+            <button id="execute-btn" class="btn-main text-white text-[12px] px-6 py-2.5 rounded shadow-lg active:scale-95 transition-all" style="background: linear-gradient(145deg, #3b82f6, #2563eb); border: 2px solid #60a5fa; font-weight: bold;">
+                作戦実行 ▶
+            </button>
+        </div>
+        <div class="flex justify-between items-center px-4 mb-1" style="border-top: 1px solid #4a3f30; padding-top: 8px; margin-top: 8px;">
+            <div class="text-[8px] uppercase" style="color: #8a7f70; font-weight: bold;">手札状況</div>
+            <div id="hand-count" class="text-[8px]" style="color: #a8a29e;">0 / 5</div>
+        </div>
+        <div id="player-hand" class="scroll-area h-28"></div>
+    </div>
+
+    <!-- 初期選択 -->
+    <div id="start-modal" class="fixed inset-0 z-50 flex items-center justify-center p-6" style="background: linear-gradient(180deg, rgba(26,20,16,0.98) 0%, rgba(13,10,8,0.98) 100%); overflow-y: auto;">
+        <div class="w-full max-w-md">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h1 class="text-4xl font-bold mb-2 tracking-tighter" style="color: #d4af37; text-shadow: 0 0 20px rgba(212,175,55,0.5), 3px 3px 6px rgba(0,0,0,0.8); font-family: 'DotGothic16', sans-serif;">FRONTLINE</h1>
+                <p class="text-[10px] uppercase tracking-widest" style="color: #8a7f70; border-top: 1px solid #4a3f30; border-bottom: 1px solid #4a3f30; padding: 4px 0; margin: 0 auto; width: fit-content;">戦線：国家の欠陥</p>
+                <p class="text-[9px] mt-2 mb-4" style="color: #6a5f50;">─ 1939-1945 ─</p>
+            </div>
+
+            <!-- モード選択画面 -->
+            <div id="mode-select" class="text-center">
+                <p class="text-[10px] mb-4" style="color: #8a7f70;">ゲームモードを選択せよ</p>
+                <div class="flex flex-col gap-3">
+                    <button id="cpu-mode-btn" class="mode-btn p-4 rounded-lg hover:border-white transition-all active:scale-95" style="background: linear-gradient(145deg, #2a2520, #1a1510); border: 2px solid #4a6fa5;">
+                        <div class="text-lg font-bold mb-1" style="color: #60a5fa;">🎯 CPU対戦</div>
+                        <div class="text-[9px]" style="color: #8a7f70;">AIと戦う通常モード</div>
+                    </button>
+                    <button id="pvp-mode-btn" class="mode-btn p-4 rounded-lg hover:border-white transition-all active:scale-95" style="background: linear-gradient(145deg, #2a2520, #1a1510); border: 2px solid #d4af37;">
+                        <div class="text-lg font-bold mb-1" style="color: #d4af37;">⚔️ 対人戦</div>
+                        <div class="text-[9px]" style="color: #8a7f70;">同じデバイスで2人対戦</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 国家選択画面 (プレイヤー1) -->
+            <div id="p1-nation-select" class="hidden">
+                <p class="text-[10px] mb-4 text-center" style="color: #8a7f70;">プレイヤー1：国家を選択せよ</p>
+                <div id="p1-nation-container" class="grid grid-cols-2 gap-3"></div>
+            </div>
+
+            <!-- 国家選択画面 (プレイヤー2) -->
+            <div id="p2-nation-select" class="hidden">
+                <p class="text-[10px] mb-4 text-center" style="color: #8a7f70;">プレイヤー2：国家を選択せよ</p>
+                <div id="p2-nation-container" class="grid grid-cols-2 gap-3"></div>
+            </div>
+
+            <!-- CPU戦の国家選択 -->
+            <div id="cpu-nation-select" class="hidden">
+                <p class="text-[10px] mb-4 text-center" style="color: #8a7f70;">国家を選択せよ</p>
+                <div id="nation-container" class="grid grid-cols-2 gap-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ターン交代モーダル (対人戦用) -->
+    <div id="turn-switch-modal" class="fixed inset-0 z-[60] hidden items-center justify-center" style="background: linear-gradient(180deg, rgba(26,20,16,0.98) 0%, rgba(13,10,8,0.98) 100%);">
+        <div class="text-center p-8" style="border: 3px solid #4a3f30; border-radius: 8px; background: linear-gradient(145deg, #2a2520, #1a1510); box-shadow: 0 20px 60px rgba(0,0,0,0.8);">
+            <div class="text-3xl font-bold mb-4" style="color: #d4af37; text-shadow: 0 0 20px rgba(212,175,55,0.5);">ターン交代</div>
+            <div id="next-player-name" class="text-xl mb-6" style="color: #d4c5b0;"></div>
+            <button id="ready-btn" class="px-8 py-3 rounded font-bold shadow-xl active:scale-95 transition-all" style="background: linear-gradient(145deg, #3b82f6, #2563eb); color: white; border: 2px solid #60a5fa;">準備完了</button>
+        </div>
+    </div>
+
+    <!-- リザルト -->
+    <div id="gameover-modal" class="fixed inset-0 z-[100] hidden flex-col items-center justify-center p-8 text-center" style="background: linear-gradient(180deg, rgba(26,20,16,0.98) 0%, rgba(13,10,8,0.98) 100%);">
+        <div style="border: 3px solid #4a3f30; padding: 40px; border-radius: 8px; background: linear-gradient(145deg, #2a2520, #1a1510); box-shadow: 0 20px 60px rgba(0,0,0,0.8), inset 0 2px 0 rgba(255,255,255,0.05);">
+            <div id="gameover-title" class="text-5xl font-bold mb-4 btn-main" style="text-shadow: 0 0 20px currentColor, 3px 3px 6px rgba(0,0,0,0.8);"></div>
+            <div style="width: 200px; height: 2px; background: linear-gradient(90deg, transparent, #4a3f30, transparent); margin: 20px auto;"></div>
+            <p id="gameover-reason" class="text-sm mb-12 max-w-xs" style="color: #d4c5b0; line-height: 1.6;"></p>
+            <button onclick="location.reload()" class="px-12 py-3 rounded font-bold shadow-xl active:scale-95 btn-main uppercase" style="background: linear-gradient(145deg, #d4af37, #b8941f); color: #1a1510; border: 2px solid #f4cf67;">再起動</button>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
